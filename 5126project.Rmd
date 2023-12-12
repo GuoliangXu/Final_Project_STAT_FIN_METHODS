@@ -1,0 +1,1315 @@
+---
+title: "Stat_methods_in_finance-Project"
+author: "Guoliang Xu"
+date: "2023-12-03"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r}
+#===STAGE ONE:  DATA 
+#Read The dataset.
+#d1<-read.csv("//Users//xuguoliang//Downloads//Data.csv") 
+#d2<-read.csv("/Users/xuguoliang/Downloads/dataset.csv")
+#d2[,-1]
+
+library(tidyquant)
+library(tidyverse)
+library(lubridate)
+library(zoo)
+library(e1071)
+symbol.vec <- c("AAPL", "AMZN", "F", "GE", "GOOGL","HD", "JNJ", "JPM","META","MSFT","NVDA","PG","TSLA","UNH","V")
+getSymbols(symbol.vec, from = "2017-01-01", to = "2022-12-31",
+periodicity = "monthly")
+getSymbols("^GSPC", src = "yahoo", from = "2017-01-01", to = "2022-12-31",periodicity = "monthly")
+
+
+```
+
+```{r}
+sp500<-c("^GSPC")
+getSymbols("^GSPC", src = "yahoo", from = "2017-01-01", to = "2022-12-31",
+periodicity = "monthly")
+sp500<-"^GSPC"
+getSymbols(sp500, src = "yahoo", from = "2017-01-01", to = "2022-12-31",
+periodicity = "monthly")
+```
+
+
+```{r}
+stocks <- cbind(AAPL, AMZN, F, GE, GOOGL,HD, JNJ, JPM,META,MSFT,NVDA,PG,TSLA,UNH,V)
+```
+
+```{r}
+AAPL <- AAPL[,6, drop = F]
+AMZN <- AMZN[,6, drop = F]
+F <- F[,6, drop = F]
+GE <- GE[,6, drop = F]
+GOOGL <- GOOGL[,6, drop = F]
+HD <- HD[,6, drop = F]
+JNJ <- JNJ[,6, drop = F]
+JPM <- JPM[,6, drop = F]
+META <- META[,6, drop = F]
+MSFT <- MSFT[,6, drop = F]
+NVDA <- NVDA[,6, drop = F]
+PG <- PG[,6, drop = F]
+TSLA <- TSLA[,6, drop = F]
+UNH<-UNH[,6, drop = F]
+V<-V[,6, drop = F]
+
+stocks1 <- cbind(AAPL, AMZN, F, GE, GOOGL,HD, JNJ, JPM,META,MSFT,NVDA,PG,TSLA,UNH,V)
+
+#GSPC<-GSPC[,6,drop=F]
+SP500<-GSPC[,6,drop=F]
+stocks2 <- cbind(stocks1,SP500)
+head(stocks2)
+
+
+
+```
+
+```{r}
+#===STAGE TWO: DESCRIPTIVE STATISTICS
+library("PerformanceAnalytics")
+#Part 1.a) Net Return, Mean SD,Skewness, Kurtosis, Beta
+AAPL.ret = CalculateReturns(stocks2[,1], method = "simple")
+AMZN.ret = CalculateReturns(stocks2[,2], method = "simple")
+F.ret = CalculateReturns(stocks2[,3], method = "simple")
+GE.ret = CalculateReturns(stocks2[,4], method = "simple")
+GOOGL.ret = CalculateReturns(stocks2[,5], method = "simple")
+HD.ret = CalculateReturns(stocks2[,6], method = "simple")
+JNJ.ret = CalculateReturns(stocks2[,7], method = "simple")
+JPM.ret = CalculateReturns(stocks2[,8], method = "simple")
+META.ret = CalculateReturns(stocks2[,9], method = "simple")
+MSFT.ret = CalculateReturns(stocks2[,10], method = "simple")
+NVDA.ret = CalculateReturns(stocks2[,11], method = "simple")
+PG.ret = CalculateReturns(stocks2[,12], method = "simple")
+TSLA.ret = CalculateReturns(stocks2[,13], method = "simple")
+UNH.ret = CalculateReturns(stocks2[,14], method = "simple")
+V.ret = CalculateReturns(stocks2[,15], method = "simple")
+sp500.ret<-CalculateReturns(stocks2[,16], method = "simple")
+
+returns <- cbind(AAPL.ret, AMZN.ret, F.ret, GE.ret, GOOGL.ret,HD.ret, JNJ.ret, JPM.ret,META.ret,MSFT.ret,NVDA.ret,PG.ret,TSLA.ret,UNH.ret,V.ret,sp500.ret)
+netreturn <- returns[-1,]
+
+# mean
+mean_vect <- colMeans(netreturn)
+mean_vect
+# std
+cov_mat <- cov(netreturn)
+sd_vect <- sqrt(diag(cov_mat))
+sd_vect
+
+# skewness
+apply(netreturn,2,skewness)
+# kurtosis
+apply(netreturn,2,kurtosis)
+
+
+# Heavy Tail (Excess Kurtosis = kurtosis coefficient - 3)
+excess.kt<-apply(netreturn,2,skewness)-3
+
+# annualized statistics
+#annualized mean
+round(apply(netreturn,2,mean)*12,2)
+#annualized sd
+round(apply(netreturn,2,sd)*sqrt(12),2)
+
+# beta 
+betai<-rep(0,ncol(netreturn))
+for(i in 1:ncol(netreturn)){
+  # betai[i]<-((netreturn[,i]-rf)/(netreturn[,ncol(netreturn)]-rf))
+  betai[i]<-cov(netreturn[,i],netreturn[,ncol(netreturn)])/var(netreturn[,ncol(netreturn)])
+} 
+betai
+
+```
+```{r}
+#part 1 b)
+asset<-as.data.frame(stocks2)
+dates <- as.Date(row.names(asset), format = "%Y-%m-%d")
+
+#1.1 plot monthly prices of stocks and SP500 in groups and plot each stock and SP500
+
+
+par(mar = c(5, 4, 4, 2) + 0.8) 
+color1<-c("red","lightblue","pink","darkgrey","orange","black")
+plot(dates,asset[,1],type="l",col="red",ylim=c(0,550),main="Monthly Adjusted Closing Price for 5 Assets and SP500",ylab="Price",xlab="Time Series",lwd=2)
+lines(dates,asset[,2],col="lightblue",lwd=2)
+lines(dates,asset[,3],col="pink",lwd=2)
+lines(dates,asset[,4],col="darkgrey",lwd=2)
+lines(dates,asset[,5],col="orange",lwd=2)
+
+par(new=TRUE)
+## Plot the second plot and put axis scale on right
+plot(dates,asset[,16], pch=15,  xlab="", ylab="",  
+    axes=FALSE, type="l", col="black")
+axis(side = 4)
+mtext('SP500 Price', side = 4, line = 1.8,lwd=2)
+legend("topleft",c("AAPL", "AMZN", "F", "GE", "GOOGL","SP500"),lty=1,col=color1,cex = 0.65)
+
+
+
+```
+```{r}
+par(mar = c(5, 4, 4, 2) + 0.8) 
+color1<-c("red","lightblue","pink","darkgrey","orange","black")
+plot(dates,asset[,6],type="l",col="red",ylim=c(0,550),main="Monthly Adjusted Closing Price for 5 Assets and SP500",ylab="Price",xlab="Time Series",lwd=2)
+lines(dates,asset[,7],col="lightblue",lwd=2)
+lines(dates,asset[,8],col="pink",lwd=2)
+lines(dates,asset[,9],col="darkgrey",lwd=2)
+lines(dates,asset[,10],col="orange",lwd=2)
+
+par(new=TRUE)
+## Plot the second plot and put axis scale on right
+plot(dates,asset[,16], pch=15,  xlab="", ylab="",  
+    axes=FALSE, type="l", col="black")
+axis(side = 4)
+mtext('SP500 Price', side = 4, line = 1.8,lwd=2)
+legend("topleft",c("HD", "JNJ", "JPM","META","MSFT","SP500"),lty=1,col=color1,cex = 0.65)
+
+```
+
+```{r}
+par(mar = c(5, 4, 4, 2) + 0.8) 
+color1<-c("red","lightblue","pink","darkgrey","orange","black")
+plot(dates,asset[,11],type="l",col="red",ylim=c(0,550),main="Monthly Adjusted Closing Price for 5 Assets and SP500",ylab="Price",xlab="Time Series",lwd=2)
+lines(dates,asset[,12],col="lightblue",lwd=2)
+lines(dates,asset[,13],col="pink",lwd=2)
+lines(dates,asset[,14],col="darkgrey",lwd=2)
+lines(dates,asset[,15],col="orange",lwd=2)
+
+par(new=TRUE)
+## Plot the second plot and put axis scale on right
+plot(dates,asset[,16], pch=15,  xlab="", ylab="",  
+    axes=FALSE, type="l", col="black")
+axis(side = 4)
+mtext('SP500 Price', side = 4, line = 1.8,lwd=2)
+legend("topleft",c("NVDA","PG","TSLA","UNH","V","SP500"),lty=1,col=color1,cex = 0.65)
+
+```
+```{r}
+library(stringr)
+name<-str_sub(colnames(stocks2),1)
+length<-length(colnames(stocks2))
+
+par(mar = c(5, 4, 4, 2) + 0.1) 
+for (i in 1:length){
+  plot<-plot.ts(stocks2[,i],main=paste(name[i],"Prices"), xlab="Time (Month)",ylab="Price")
+  plot
+}
+```
+
+
+```{r}
+#1.2  plot monthly returns
+
+color<-c("red","blue")
+par(mar = c(5, 4, 4, 2) + 0.1) 
+dates1<-as.Date(row.names(as.data.frame(netreturn)), format = "%Y-%m-%d")
+
+
+plot(netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="SP500 Monthly Returns",ylab="net return",xlab="Time Series")
+
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="AAPL Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,1],col="blue",lty=23)
+legend("topleft",c("sp500","AAPL"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="AMZN Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,2],col="blue",lty=23)
+legend("topleft",c("sp500","AMZN"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="F Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,3],col="blue",lty=23)
+legend("topleft",c("sp500","F"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="GE Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,4],col="blue",lty=23)
+legend("topleft",c("sp500","GE"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="GOOGL Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,5],col="blue",lty=23)
+legend("topleft",c("sp500","GOOGL"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="HD Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,6],col="blue",lty=23)
+legend("topleft",c("sp500","HD"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="JNJ Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,7],col="blue",lty=23)
+legend("topleft",c("sp500","JNJ"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="JPM Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,8],col="blue",lty=23)
+legend("topleft",c("sp500","JPM"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="META Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,9],col="blue",lty=23)
+legend("topleft",c("sp500","META"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="MSFT Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,10],col="blue",lty=23)
+legend("topleft",c("sp500","MSFT"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="NVDA Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,12],col="blue",lty=23)
+legend("topleft",c("sp500","NVDA"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="PG Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,12],col="blue",lty=23)
+legend("topleft",c("sp500","PG"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="TSLA Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,13],col="blue",lty=23)
+legend("topleft",c("sp500","TSLA"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="UNH Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,14],col="blue",lty=23)
+legend("topleft",c("sp500","UNH"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+plot(dates1,netreturn[,16],type='l',lty=1,col="red",ylim=c(-0.9,0.9),main="V Monthly Returns",ylab="net return",xlab="Time Series")
+lines(dates1,netreturn[,15],col="blue",lty=23)
+legend("topleft",c("sp500","V"),lty=c(1,23),col=color,cex = 0.65,xpd = TRUE)
+
+
+```
+```{r}
+#1.3 Equity Curve and Compare it with SP500. Include the initial date.
+#equity=lapply(netreturn,function(data){ 
+#  exp(cumsum(log(data+1)))
+#})
+
+#1.3.1 plot individually 
+#note,compared with the netreturn dataset,  returns dataset is also the net return,which incldue the initial date. 2017/1/1
+for (i in 1:16){
+  returns[1,i]<-0 #set the initial date's net return is 0
+  returns
+}
+
+
+equity=lapply(returns,function(data){ #removing SP500
+  exp(cumsum(log(data+1)))
+})
+
+
+par(mfrow=c(2,4))
+for (i in 1:length(equity)){
+  plot1<-plot.ts(equity[[i]],main=name[i],ylab="$",xlab="month")
+  plot1
+}
+library(ggplot2)
+geom_abline(mapping=aes())
+
+```
+
+
+
+
+```{r}
+#1.3.2 plot each stock with SP500
+#EquityCurve<-cumprod(1+netreturn)
+#note returns dataset is also the net return,which incldue the initial date. 2017/1/1
+for (i in 1:16){
+  returns[1,i]<-0 #set the initial date's net return is 0
+  returns
+}
+
+EquityCurve<-cumprod(1+returns)
+  
+  
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="AAPL(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,1],col="blue")
+
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="AMZN(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,2],col="blue")
+
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="F(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,3],col="blue")
+
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="GE(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,4],col="blue")
+
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="GOOGL(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,5],col="blue")
+
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="HD(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,6],col="blue")
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="JNJ(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,7],col="blue")
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="JPM(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,8],col="blue")
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="META(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,9],col="blue")
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="MSFT(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,10],col="blue")
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="NVDA(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,11],col="blue")
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="PG(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,12],col="blue")
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="TSLA(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,13],col="blue")
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="UNH(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,14],col="blue")
+
+colorEC2<-c("red","blue")
+plot(EquityCurve[,16],type="l",lwd=2.5,lty=2,main="V(Blue) vs SP500 (red)",ylab="Return of 1 dollar", xlab="Time Series",col="red")
+lines(EquityCurve[,15],col="blue")
+
+
+
+```
+```{r}
+#1.4 Histogram and Density plot for Stock Returns
+
+par(mfrow=c(2,3))
+
+hist(AAPL.ret,main="AAPL")
+hist(AMZN.ret,main="AMZN")
+hist(F.ret,main="F")
+hist(GE.ret,main="GE")
+hist(GOOGL.ret,main="GOOGL")
+
+
+hist(HD.ret,main="HD")
+hist(JNJ.ret,main="JNJ")
+hist(JPM.ret,main="JPM")
+hist(META.ret,main="META")
+hist(MSFT.ret,main="MSFT")
+
+hist(NVDA.ret,main="NVDA")
+hist(PG.ret,main="PG")
+hist(TSLA.ret,main="TSLA")
+hist(UNH.ret,main="UNH")
+hist(V.ret,main="V")
+hist(sp500.ret,main = "SP500")
+
+
+
+# Density Plot.
+
+par(mfrow = c(1,1))
+
+plot(density(netreturn$AAPL, adjust = 0.3, kernel = "gaussian"), main = "Density of AAPL (Adjust = 0.3)")
+plot(density(netreturn$AAPL, adjust = 0.7, kernel = "gaussian"), main = "Density of AAPL (Adjust = 0.7)")
+plot(density(netreturn$AAPL, adjust = 1, kernel = "gaussian"), main = "Density of AAPL (Adjust = 1)")
+plot(density(netreturn$AAPL, adjust = 3, kernel = "gaussian"), main = "Density of AAPL (Adjust = 3)")
+plot(density(netreturn$AAPL, adjust = 7, kernel = "gaussian"), main = "Density of AAPL (Adjust = 7)")
+
+plot(density(netreturn$AMZN, adjust = 0.3, kernel = "gaussian"), main = "Density of AMZN (Adjust = 0.3)")
+plot(density(netreturn$AMZN, adjust = 0.7, kernel = "gaussian"), main = "Density of AMZN (Adjust = 0.7)")
+plot(density(netreturn$AMZN, adjust = 1, kernel = "gaussian"), main = "Density of AMZN (Adjust = 1)")
+plot(density(netreturn$AMZN, adjust = 3, kernel = "gaussian"), main = "Density of AMZN (Adjust = 3)")
+plot(density(netreturn$AMZN, adjust = 7, kernel = "gaussian"), main = "Density of AMZN (Adjust = 7)")
+
+plot(density(netreturn$F, adjust = 0.3, kernel = "gaussian"), main = "Density of F (Adjust = 0.3)")
+plot(density(netreturn$F, adjust = 0.7, kernel = "gaussian"), main = "Density of F (Adjust = 0.7)")
+plot(density(netreturn$F, adjust = 1, kernel = "gaussian"), main = "Density of F (Adjust = 1)")
+plot(density(netreturn$F, adjust = 3, kernel = "gaussian"), main = "Density of F (Adjust = 3)")
+plot(density(netreturn$F, adjust = 7, kernel = "gaussian"), main = "Density of F (Adjust = 7)")
+
+plot(density(netreturn$GE, adjust = 0.3, kernel = "gaussian"), main = "Density of GE (Adjust = 0.3)")
+plot(density(netreturn$GE, adjust = 0.7, kernel = "gaussian"), main = "Density of GE (Adjust = 0.7)")
+plot(density(netreturn$GE, adjust = 1, kernel = "gaussian"), main = "Density of GE (Adjust = 1)")
+plot(density(netreturn$GE, adjust = 3, kernel = "gaussian"), main = "Density of GE (Adjust = 3)")
+plot(density(netreturn$GE, adjust = 7, kernel = "gaussian"), main = "Density of GE (Adjust = 7)")
+
+plot(density(netreturn$GOOGL, adjust = 0.3, kernel = "gaussian"), main = "Density of GOOGL (Adjust = 0.3)")
+plot(density(netreturn$GOOGL, adjust = 0.7, kernel = "gaussian"), main = "Density of GOOGL (Adjust = 0.7)")
+plot(density(netreturn$GOOGL, adjust = 1, kernel = "gaussian"), main = "Density of GOOGL (Adjust = 1)")
+plot(density(netreturn$GOOGL, adjust = 3, kernel = "gaussian"), main = "Density of GOOGL (Adjust = 3)")
+plot(density(netreturn$GOOGL, adjust = 7, kernel = "gaussian"), main = "Density of GOOGL (Adjust = 7)")
+
+plot(density(netreturn$HD, adjust = 0.3, kernel = "gaussian"), main = "Density of HD (Adjust = 0.3)")
+plot(density(netreturn$HD, adjust = 0.7, kernel = "gaussian"), main = "Density of HD (Adjust = 0.7)")
+plot(density(netreturn$HD, adjust = 1, kernel = "gaussian"), main = "Density of HD (Adjust = 1)")
+plot(density(netreturn$HD, adjust = 3, kernel = "gaussian"), main = "Density of HD (Adjust = 3)")
+plot(density(netreturn$HD, adjust = 7, kernel = "gaussian"), main = "Density of HD (Adjust = 7)")
+
+plot(density(netreturn$JNJ, adjust = 0.3, kernel = "gaussian"), main = "Density of JNJ (Adjust = 0.3)")
+plot(density(netreturn$JNJ, adjust = 0.7, kernel = "gaussian"), main = "Density of JNJ (Adjust = 0.7)")
+plot(density(netreturn$JNJ, adjust = 1, kernel = "gaussian"), main = "Density of JNJ (Adjust = 1)")
+plot(density(netreturn$JNJ, adjust = 3, kernel = "gaussian"), main = "Density of JNJ (Adjust = 3)")
+plot(density(netreturn$JNJ, adjust = 7, kernel = "gaussian"), main = "Density of JNJ (Adjust = 7)")
+
+plot(density(netreturn$JPM, adjust = 0.3, kernel = "gaussian"), main = "Density of JPM (Adjust = 0.3)")
+plot(density(netreturn$JPM, adjust = 0.7, kernel = "gaussian"), main = "Density of JPM (Adjust = 0.7)")
+plot(density(netreturn$JPM, adjust = 1, kernel = "gaussian"), main = "Density of JPM (Adjust = 1)")
+plot(density(netreturn$JPM, adjust = 3, kernel = "gaussian"), main = "Density of JPM (Adjust = 3)")
+plot(density(netreturn$JPM, adjust = 7, kernel = "gaussian"), main = "Density of JPM (Adjust = 7)")
+
+plot(density(netreturn$META, adjust = 0.3, kernel = "gaussian"), main = "Density of META (Adjust = 0.3)")
+plot(density(netreturn$META, adjust = 0.7, kernel = "gaussian"), main = "Density of META (Adjust = 0.7)")
+plot(density(netreturn$META, adjust = 1, kernel = "gaussian"), main = "Density of META (Adjust = 1)")
+plot(density(netreturn$META, adjust = 3, kernel = "gaussian"), main = "Density of META (Adjust = 3)")
+plot(density(netreturn$META, adjust = 7, kernel = "gaussian"), main = "Density of META (Adjust = 7)")
+
+plot(density(netreturn$MSFT, adjust = 0.3, kernel = "gaussian"), main = "Density of MSFT (Adjust = 0.3)")
+plot(density(netreturn$MSFT, adjust = 0.7, kernel = "gaussian"), main = "Density of MSFT (Adjust = 0.7)")
+plot(density(netreturn$MSFT, adjust = 1, kernel = "gaussian"), main = "Density of MSFT (Adjust = 1)")
+plot(density(netreturn$MSFT, adjust = 3, kernel = "gaussian"), main = "Density of MSFT (Adjust = 3)")
+plot(density(netreturn$MSFT, adjust = 7, kernel = "gaussian"), main = "Density of MSFT (Adjust = 7)")
+
+plot(density(netreturn$NVDA, adjust = 0.3, kernel = "gaussian"), main = "Density of NVDA (Adjust = 0.3)")
+plot(density(netreturn$NVDA, adjust = 0.7, kernel = "gaussian"), main = "Density of NVDA (Adjust = 0.7)")
+plot(density(netreturn$NVDA, adjust = 1, kernel = "gaussian"), main = "Density of NVDA (Adjust = 1)")
+plot(density(netreturn$NVDA, adjust = 3, kernel = "gaussian"), main = "Density of NVDA (Adjust = 3)")
+plot(density(netreturn$NVDA, adjust = 7, kernel = "gaussian"), main = "Density of NVDA (Adjust = 7)")
+
+plot(density(netreturn$PG, adjust = 0.3, kernel = "gaussian"), main = "Density of PG (Adjust = 0.3)")
+plot(density(netreturn$PG, adjust = 0.7, kernel = "gaussian"), main = "Density of PG (Adjust = 0.7)")
+plot(density(netreturn$PG, adjust = 1, kernel = "gaussian"), main = "Density of PG (Adjust = 1)")
+plot(density(netreturn$PG, adjust = 3, kernel = "gaussian"), main = "Density of PG (Adjust = 3)")
+plot(density(netreturn$PG, adjust = 7, kernel = "gaussian"), main = "Density of PG (Adjust = 7)")
+
+plot(density(netreturn$TSLA, adjust = 0.3, kernel = "gaussian"), main = "Density of TSLA (Adjust = 0.3)")
+plot(density(netreturn$TSLA, adjust = 0.7, kernel = "gaussian"), main = "Density of TSLA (Adjust = 0.7)")
+plot(density(netreturn$TSLA, adjust = 1, kernel = "gaussian"), main = "Density of TSLA (Adjust = 1)")
+plot(density(netreturn$TSLA, adjust = 3, kernel = "gaussian"), main = "Density of TSLA (Adjust = 3)")
+plot(density(netreturn$TSLA, adjust = 7, kernel = "gaussian"), main = "Density of TSLA (Adjust = 7)")
+
+
+plot(density(netreturn$UNH, adjust = 0.3, kernel = "gaussian"), main = "Density of UNH (Adjust = 0.3)")
+plot(density(netreturn$UNH, adjust = 0.7, kernel = "gaussian"), main = "Density of UNH (Adjust = 0.7)")
+plot(density(netreturn$UNH, adjust = 1, kernel = "gaussian"), main = "Density of UNH (Adjust = 1)")
+plot(density(netreturn$UNH, adjust = 3, kernel = "gaussian"), main = "Density of UNH (Adjust = 3)")
+plot(density(netreturn$UNH, adjust = 7, kernel = "gaussian"), main = "Density of UNH (Adjust = 7)")
+
+plot(density(netreturn$V, adjust = 0.3, kernel = "gaussian"), main = "Density of V (Adjust = 0.3)")
+plot(density(netreturn$V, adjust = 0.7, kernel = "gaussian"), main = "Density of V (Adjust = 0.7)")
+plot(density(netreturn$V, adjust = 1, kernel = "gaussian"), main = "Density of V (Adjust = 1)")
+plot(density(netreturn$V, adjust = 3, kernel = "gaussian"), main = "Density of V (Adjust = 3)")
+plot(density(netreturn$V, adjust = 7, kernel = "gaussian"), main = "Density of V (Adjust = 7)")
+
+plot(density(netreturn$SP500, adjust = 0.3, kernel = "gaussian"), main = "Density of SP500 (Adjust = 0.3)")
+plot(density(netreturn$SP500, adjust = 0.7, kernel = "gaussian"), main = "Density of SP500 (Adjust = 0.7)")
+plot(density(netreturn$SP500, adjust = 1, kernel = "gaussian"), main = "Density of SP500 (Adjust = 1)")
+plot(density(netreturn$SP500, adjust = 3, kernel = "gaussian"), main = "Density of SP500 (Adjust = 3)")
+plot(density(netreturn$SP500, adjust = 7, kernel = "gaussian"), main = "Density of SP500 (Adjust = 7)")
+
+par(mfrow = c(1,1))
+
+```
+```{r}
+#1.5 normal 
+```
+
+
+```{r}
+#1.6 outliers
+boxplot(netreturn,las=2,main="Asset Returns Outlier")
+
+
+
+dates4<-dates[-1]
+data4 = as.data.frame(round(netreturn,3))
+data2 = cbind(dates4, data4)
+
+plot_ly(data2,y=data2[,2],type="box",name="AAPL") %>%
+  add_trace(y=data2[,3],type="box",name="AMZN") %>%
+  add_trace(y=data2[,4],type="box",name="F") %>%
+  add_trace(y=data2[,5],type="box",name="GE") %>%
+  add_trace(y=data2[,6],type="box",name="GOOGL") %>%
+  add_trace(y=data2[,7],type="box",name="HD") %>%
+  add_trace(y=data2[,8],type="box",name="JNJ") %>%
+  add_trace(y=data2[,9],type="box",name="JPM") %>%
+  add_trace(y=data2[,10],type="box",name="META") %>%
+  add_trace(y=data2[,11],type="box",name="MSFT") %>%
+  add_trace(y=data2[,12],type="box",name="NVDA") %>%
+  add_trace(y=data2[,13],type="box",name="PG") %>%
+  add_trace(y=data2[,14],type="box",name="TSLA") %>%
+  add_trace(y=data2[,15],type="box",name="UNH") %>%
+  add_trace(y=data2[,16],type="box",name="V") %>%
+  add_trace(y=data2[,17],type="box",name="SP500") %>%
+  layout(title="Boxplot of assets' returns")
+
+
+outlier = boxplot.stats(data2[,2])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,2] == outlier[j], select = c(1,2)))
+}
+
+outlier = boxplot.stats(data2[,3])$out
+for (j in 1:length(outlier)) {
+    print(subset(data2, data2[,3] == outlier[j], select = c(1,3)))
+}
+
+outlier = boxplot.stats(data2[,4])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,4] == outlier[j], select = c(1,4)))
+}
+
+outlier = boxplot.stats(data2[,5])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,5] == outlier[j], select = c(1,5)))
+}
+
+outlier = boxplot.stats(data2[,6])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,6] == outlier[j], select = c(1,6)))
+}
+
+outlier = boxplot.stats(data2[,7])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,7] == outlier[j], select = c(1,7)))
+}
+
+outlier = boxplot.stats(data2[,8])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,8] == outlier[j], select = c(1,8)))
+}
+
+outlier = boxplot.stats(data2[,9])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,9] == outlier[j], select = c(1,9)))
+}
+
+outlier = boxplot.stats(data2[,10])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,10] == outlier[j], select = c(1,10)))
+}
+
+outlier = boxplot.stats(data2[,11])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,11] == outlier[j], select = c(1,11)))
+}
+
+outlier = boxplot.stats(data2[,12])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,12] == outlier[j], select = c(1,12)))
+}
+
+outlier = boxplot.stats(data2[,13])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,13] == outlier[j], select = c(1,13)))
+}
+
+outlier = boxplot.stats(data2[,14])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,14] == outlier[j], select = c(1,14)))
+}
+
+outlier = boxplot.stats(data2[,15])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,15] == outlier[j], select = c(1,15)))
+}
+
+outlier = boxplot.stats(data2[,16])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,16] == outlier[j], select = c(1,16)))
+}
+
+outlier = boxplot.stats(data2[,17])$out
+for (j in 1:length(outlier)) {
+  print(subset(data2, data2[,17] == outlier[j], select = c(1,17)))
+}
+
+```
+
+
+
+```{r}
+boxplot(stocks2[,-16],las=2,main="Asset Price Outlier")
+boxplot(stocks2[,16],las=2,main="SP500 Price Outlier")
+
+dates5<-dates
+data5 = as.data.frame(round(stocks2,3))
+data22 = cbind(dates5, data5)
+plot_ly(data22,y=data22[,2],type="box",name="AAPL") %>%
+  add_trace(y=data22[,3],type="box",name="AMZN") %>%
+  add_trace(y=data22[,4],type="box",name="F") %>%
+  add_trace(y=data22[,5],type="box",name="GE") %>%
+  add_trace(y=data22[,6],type="box",name="GOOGL") %>%
+  add_trace(y=data22[,7],type="box",name="HD") %>%
+  add_trace(y=data22[,8],type="box",name="JNJ") %>%
+  add_trace(y=data22[,9],type="box",name="JPM") %>%
+  add_trace(y=data22[,10],type="box",name="META") %>%
+  add_trace(y=data22[,11],type="box",name="MSFT") %>%
+  add_trace(y=data22[,12],type="box",name="NVDA") %>%
+  add_trace(y=data22[,13],type="box",name="PG") %>%
+  add_trace(y=data22[,14],type="box",name="TSLA") %>%
+  add_trace(y=data22[,15],type="box",name="UNH") %>%
+  add_trace(y=data22[,16],type="box",name="V") %>%
+  add_trace(y=data22[,17],type="box",name="SP500") %>%
+  layout(title="Boxplot of assets' returns")
+
+
+
+
+outlier = boxplot.stats(data22[,2])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,2] == outlier[j], select = c(1,2)))
+}
+
+outlier = boxplot.stats(data22[,3])$out
+for (j in 1:length(outlier)) {
+    print(subset(data22, data22[,3] == outlier[j], select = c(1,3)))
+}
+
+outlier = boxplot.stats(data22[,4])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,4] == outlier[j], select = c(1,4)))
+}
+
+outlier = boxplot.stats(data22[,5])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,5] == outlier[j], select = c(1,5)))
+}
+
+outlier = boxplot.stats(data22[,6])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,6] == outlier[j], select = c(1,6)))
+}
+
+outlier = boxplot.stats(data22[,7])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,7] == outlier[j], select = c(1,7)))
+}
+
+outlier = boxplot.stats(data22[,8])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,8] == outlier[j], select = c(1,8)))
+}
+
+outlier = boxplot.stats(data22[,9])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,9] == outlier[j], select = c(1,9)))
+}
+
+outlier = boxplot.stats(data22[,10])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,10] == outlier[j], select = c(1,10)))
+}
+
+outlier = boxplot.stats(data22[,11])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,11] == outlier[j], select = c(1,11)))
+}
+
+outlier = boxplot.stats(data22[,12])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,12] == outlier[j], select = c(1,12)))
+}
+
+outlier = boxplot.stats(data22[,13])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,13] == outlier[j], select = c(1,13)))
+}
+
+outlier = boxplot.stats(data22[,14])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,14] == outlier[j], select = c(1,14)))
+}
+
+outlier = boxplot.stats(data22[,15])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,15] == outlier[j], select = c(1,15)))
+}
+
+outlier = boxplot.stats(data22[,16])$out
+for (j in 1:length(outlier)) {
+  print(subset(data22, data22[,16] == outlier[j], select = c(1,16)))
+}
+
+
+
+
+
+
+
+
+```
+
+
+
+```{r}
+# 1.7.1 Stationarity Test ---ADF test 
+library(tseries)
+#0.05 significanc level
+
+#for asset return
+adf.test(netreturn$AAPL)#Yes stationarity
+adf.test(netreturn$AMZN)#no
+adf.test(netreturn$F)#YEs
+adf.test(netreturn$GE)
+adf.test(netreturn$GOOGL)
+adf.test(netreturn$HD)
+adf.test(netreturn$JNJ)
+adf.test(netreturn$JPM)
+adf.test(netreturn$META)
+adf.test(netreturn$MSFT)
+adf.test(netreturn$NVDA)
+adf.test(netreturn$PG)
+adf.test(netreturn$TSLA)
+adf.test(netreturn$UNH)
+adf.test(netreturn$V)
+adf.test(netreturn$SP500)
+
+#for asset price
+adf.test(stocks2$AAPL)
+adf.test(stocks2$AMZN)
+adf.test(stocks2$F)
+adf.test(stocks2$GE)
+adf.test(stocks2$GOOGL)
+adf.test(stocks2$HD)
+adf.test(stocks2$JNJ)
+adf.test(stocks2$JPM)
+adf.test(stocks2$META)
+adf.test(stocks2$MSFT)
+adf.test(stocks2$NVDA)
+adf.test(stocks2$PG)
+adf.test(stocks2$TSLA)
+adf.test(stocks2$UNH)
+adf.test(stocks2$V)
+adf.test(stocks2$SP500)
+#test results, price not stationary + . From the price plot, we can see a clear trend, which means the time series is non-stationary. 
+
+```
+
+
+```{r}
+#1.7.2 Stationarity Test --KPSS test #Here we will use trend rather than level. to test the null hypothesis of trend stationarity (a low p-value will indicate a signal that is not trend stationary, has a unit root):
+
+#for asset return
+kpss.test(netreturn$AAPL, null=c("Trend"))
+kpss.test(netreturn$AMZN, null=c( "Trend"))
+kpss.test(netreturn$F, null=c("Trend"))
+kpss.test(netreturn$GE, null=c( "Trend"))
+kpss.test(netreturn$GOOGL, null=c( "Trend"))
+kpss.test(netreturn$HD, null=c( "Trend"))
+kpss.test(netreturn$JNJ, null=c( "Trend"))
+kpss.test(netreturn$JPM, null=c( "Trend"))
+kpss.test(netreturn$META, null=c("Trend"))
+kpss.test(netreturn$MSFT, null=c( "Trend"))
+kpss.test(netreturn$NVDA, null=c( "Trend"))
+kpss.test(netreturn$PG, null=c("Trend"))
+kpss.test(netreturn$TSLA, null=c( "Trend"))
+kpss.test(netreturn$UNH, null=c("Trend"))
+kpss.test(netreturn$V, null=c("Trend"))
+kpss.test(netreturn$SP500, null=c("Trend"))
+#for asset price
+kpss.test(stocks2$AAPL, null=c("Trend"))
+kpss.test(stocks2$AMZN, null=c( "Trend"))
+kpss.test(stocks2$F, null=c( "Trend"))
+kpss.test(stocks2$GE, null=c( "Trend"))
+kpss.test(stocks2$GOOGL, null=c( "Trend"))
+kpss.test(stocks2$HD, null=c("Trend"))
+kpss.test(stocks2$JNJ, null=c("Trend"))
+kpss.test(stocks2$JPM, null=c( "Trend"))
+kpss.test(stocks2$META, null=c( "Trend"))
+kpss.test(stocks2$MSFT, null=c( "Trend"))
+kpss.test(stocks2$NVDA, null=c("Trend"))
+kpss.test(stocks2$PG, null=c( "Trend"))
+kpss.test(stocks2$TSLA, null=c("Trend"))
+kpss.test(stocks2$UNH, null=c( "Trend"))
+kpss.test(stocks2$V, null=c("Trend"))
+kpss.test(stocks2$SP500, null=c( "Trend"))
+
+```
+```{r}
+#1.7.3 Stationarity Test --price plot and price change plot
+#price plot see above
+#price change plot:
+
+par(mfrow=c(2,4))
+c_aapl <- diff(stocks2$AAPL)
+ts.plot(c_aapl, ylab="Price Change", main="AAPL")
+
+c_amzn <- diff(stocks2$AMZN)
+ts.plot(c_amzn, ylab="Price Change", main="AMZN")
+
+c_f <- diff(stocks2$F)
+ts.plot(c_f, ylab="Price Change", main="F")
+
+c_ge <- diff(stocks2$GE)
+ts.plot(c_ge, ylab="Price Change", main="GE")
+
+c_googl <- diff(stocks2$GOOGL)
+ts.plot(c_googl, ylab="Price Change", main="GOOGL")
+
+c_hd <- diff(stocks2$HD)
+ts.plot(c_hd, ylab="Price Change", main="HD")
+
+
+c_jnj <- diff(stocks2$JNJ)
+ts.plot(c_jnj, ylab="Price Change", main="JNJ")
+
+c_jpm <- diff(stocks2$JPM)
+ts.plot(c_jpm, ylab="Price Change", main="JPM")
+
+c_meta <- diff(stocks2$META)
+ts.plot(c_meta, ylab="Price Change", main="META")
+
+c_msft <- diff(stocks2$MSFT)
+ts.plot(c_msft, ylab="Price Change", main="MSFT")
+
+c_nvda <- diff(stocks2$NVDA)
+ts.plot(c_nvda, ylab="Price Change", main="NVDA")
+
+c_pg <- diff(stocks2$PG)
+ts.plot(c_pg, ylab="Price Change", main="PG")
+
+c_tsla<- diff(stocks2$TSLA)
+ts.plot(c_tsla, ylab="Price Change", main="TSLA")
+
+c_unh <- diff(stocks2$UNH)
+ts.plot(c_unh, ylab="Price Change", main="UNH")
+
+c_v<- diff(stocks2$V)
+ts.plot(c_v, ylab="Price Change", main="V")
+
+c_sp500 <- diff(stocks2$SP500)
+ts.plot(c_sp500, ylab="Price Change", main="SP500")
+
+
+```
+
+
+
+```{r}
+#1.8 normality 
+#1.8.1 QQplot 
+
+library("fBasics")
+
+par(mfrow=c(2,3))
+qqnormPlot(netreturn$AAPL,title=FALSE)
+title(main="AAPL",ylab=NULL)
+
+qqnormPlot(netreturn$AMZN,title=FALSE)
+title(main="AMZN",ylab=NULL)
+
+qqnormPlot(netreturn$F,title=FALSE)
+title(main="F",ylab=NULL)
+
+qqnormPlot(netreturn$GE,title=FALSE)
+title(main="GE",ylab=NULL)
+
+qqnormPlot(netreturn$GOOGL,title=FALSE)
+title(main="GOOGL",ylab=NULL)
+
+qqnormPlot(netreturn$HD,title=FALSE)
+title(main="HD",ylab=NULL)
+
+qqnormPlot(netreturn$JNJ,title=FALSE)
+title(main="JNJ",ylab=NULL)
+
+qqnormPlot(netreturn$JPM,title=FALSE)
+title(main="JPM",ylab=NULL)
+
+qqnormPlot(netreturn$META,title=FALSE)
+title(main="META",ylab=NULL)
+
+qqnormPlot(netreturn$MSFT,title=FALSE)
+title(main="MSFT",ylab=NULL)
+
+qqnormPlot(netreturn$NVDA,title=FALSE)
+title(main="NVDA",ylab=NULL)
+
+qqnormPlot(netreturn$PG,title=FALSE)
+title(main="PG",ylab=NULL)
+
+qqnormPlot(netreturn$TSLA,title=FALSE)
+title(main="TSLA",ylab=NULL)
+
+qqnormPlot(netreturn$UNH,title=FALSE)
+title(main="UNH",ylab=NULL)
+
+qqnormPlot(netreturn$V,title=FALSE)
+title(main="V",ylab=NULL)
+
+
+
+```
+
+
+```{r}
+#1.8.2 Normality Test- shapiro-wilk test
+dfnetreturn<-as.data.frame(netreturn)
+shapiro.test(dfnetreturn$AAPL)
+shapiro.test(dfnetreturn$AMZN)
+shapiro.test(dfnetreturn$F)
+shapiro.test(dfnetreturn$GE)
+shapiro.test(dfnetreturn$GOOGL)
+shapiro.test(dfnetreturn$HD)
+shapiro.test(dfnetreturn$JNJ)
+shapiro.test(dfnetreturn$JPM)
+shapiro.test(dfnetreturn$META)
+shapiro.test(dfnetreturn$MSFT)
+shapiro.test(dfnetreturn$NVDA)
+shapiro.test(dfnetreturn$PG)
+shapiro.test(dfnetreturn$TSLA)
+shapiro.test(dfnetreturn$UNH)
+shapiro.test(dfnetreturn$V)
+
+
+```
+
+
+```{r}
+#1.8.3 Normality Test- Kolmogorov-Smirnov test
+ks.test(netreturn[,1],"pnorm")
+ks.test(netreturn[,2],"pnorm")
+ks.test(netreturn[,3],"pnorm")
+ks.test(netreturn[,4],"pnorm")
+ks.test(netreturn[,5],"pnorm")
+ks.test(netreturn[,6],"pnorm")
+ks.test(netreturn[,7],"pnorm")
+ks.test(netreturn[,8],"pnorm")
+ks.test(netreturn[,9],"pnorm")
+ks.test(netreturn[,10],"pnorm")
+ks.test(netreturn[,11],"pnorm")
+ks.test(netreturn[,12],"pnorm")
+ks.test(netreturn[,13],"pnorm")
+ks.test(netreturn[,14],"pnorm")
+ks.test(netreturn[,15],"pnorm")
+
+
+
+```
+
+
+```{r}
+#1.9  covariance and correlation
+library(ltm) 
+library(corrplot)
+library(psych)
+
+# Scatter Plot
+pairs(~AAPL+AMZN+F+GE+GOOGL+HD+ JNJ+ JPM+META+MSFT+NVDA+PG+TSLA+UNH+V,data=netreturn,main="Pairwise Scatter Plots")
+
+# Covariance Matrix
+cov(netreturn)
+cor(netreturn)
+
+relation <- cor(netreturn, method = "spearman")
+corrplot(relation, type = "lower", order = "hclust")
+
+
+
+```
+```{r}
+#1.10 fit normal and t distribution to return data
+library("fitdistrplus")
+library("fGarch")
+
+
+#Normal 
+AICnorm<-rep(0,ncol(dfnetreturn)-1)
+BICnorm<-rep(0,ncol(dfnetreturn)-1)
+for (i in 1:(ncol(dfnetreturn)-1)){
+  fitnorm<-fitdist(dfnetreturn[,i],"norm")
+  AICnorm[i]<-fitnorm$aic
+  BICnorm[i]<-fitnorm$bic
+}
+AICnorm
+BICnorm
+
+#check 
+fitnorm1 <- fitdistr(dfnetreturn$UNH, "normal")
+# Calculate AIC
+aic_norm<-(-2*fitnorm1$loglik+2*length(fitnorm1$estimate))
+aic_norm
+
+#same AIC
+
+
+
+
+#method1 for t distribution
+loglik<-rep(0,ncol(netreturn)-1)
+AICt<-rep(0,ncol(netreturn)-1)
+for(i in 1:(ncol(netreturn)-1)){
+  fitt<-fitdistr(netreturn[,i],"t",df=ncol(netreturn)-1-2,list(m=stdFit(netreturn[,i])$par[1],s=stdFit(netreturn[,i])$par[2]),lower=c(-1,0.0001,1))
+  loglik[i]<-fitt$loglik
+  AICt[i]<-AIC(fitt)
+}
+AICt
+
+#methods 2 for standardized t distribution! use the results from this.
+fitstd1<-stdFit(netreturn$AAPL)
+summary(fitstd1)
+2 * fitstd1$objective + 2 * length(fitstd1$par)
+
+fitstd2<-stdFit(netreturn$AMZN)
+summary(fitstd2)
+2 * fitstd2$objective + 2 * length(fitstd2$par)
+
+fitstd3<-stdFit(netreturn$F)
+summary(fitstd3)
+2 * fitstd3$objective + 2 * length(fitstd3$par)
+
+fitstd4<-stdFit(netreturn$GE)
+summary(fitstd4)
+2 * fitstd4$objective + 2 * length(fitstd4$par)
+
+fitstd5<-stdFit(netreturn$GOOGL)
+summary(fitstd5)
+2 * fitstd5$objective + 2 * length(fitstd5$par)
+
+fitstd6<-stdFit(netreturn$HD)
+summary(fitstd6)
+2 * fitstd6$objective + 2 * length(fitstd6$par)
+
+fitstd7<-stdFit(netreturn$JNJ)
+summary(fitstd7)
+2 * fitstd7$objective + 2 * length(fitstd7$par)
+
+fitstd8<-stdFit(netreturn$JPM)
+summary(fitstd8)
+2 * fitstd8$objective + 2 * length(fitstd8$par)
+
+fitstd9<-stdFit(netreturn$META)
+summary(fitstd9)
+2 * fitstd9$objective + 2 * length(fitstd9$par)
+
+fitstd10<-stdFit(netreturn$MSFT)
+summary(fitstd10)
+2 * fitstd10$objective + 2 * length(fitstd10$par)
+
+fitstd11<-stdFit(netreturn$NVDA)
+summary(fitstd11)
+2 * fitstd11$objective + 2 * length(fitstd11$par)
+
+fitstd12<-stdFit(netreturn$PG)
+summary(fitstd12)
+2 * fitstd12$objective + 2 * length(fitstd12$par)
+
+fitstd13<-stdFit(netreturn$TSLA)
+summary(fitstd13)
+2 * fitstd13$objective + 2 * length(fitstd13$par)
+
+fitstd14<-stdFit(netreturn$UNH)
+summary(fitstd14)
+2 * fitstd14$objective + 2 * length(fitstd14$par)
+
+fitstd15<-stdFit(netreturn$V)
+summary(fitstd15)
+2 * fitstd15$objective + 2 * length(fitstd15$par)
+
+
+
+```
+
+```{r}
+#1.11 Sharpe Ratio
+#method 1#annualized 
+rf<-0.011 
+sr<-rep(0,ncol(netreturn))
+for(i in 1:ncol(netreturn)){
+  sr[i]<-(mean(netreturn[,i])*12-rf)/(sd(netreturn[,i])*sqrt(12))
+}
+sr
+
+
+#method2 monthly
+rf_month=0.011/12 #monthly risk free
+sharp_ratio<-(mean_vect-rf_month)/(sd_vect)
+
+sharp_ratio#<-data.frame(sharp_ratio)
+
+```
+```{r}
+#===STAGE THREE PORTFOLIO THEORY
+
+
+
+
+
+
+```
+
+```{r}
+#=== STAGE FIVE  ASSET ALLOCATION
+library(Ecdat)
+library(quadprog)
+A=100000
+mufree=rf_month
+target<-0.005 #0.5% per month, 6% per year
+
+# No T-Bills
+mean_vect<-colMeans(netreturn[,-16])
+cov_mat<-cov(netreturn[,-16])
+sd_vect<-sqrt(diag(cov_mat))
+
+Amat_t<-cbind(rep(1,15),mean_vect,diag(1,nrow=15))
+mup_t<-seq(0.005,0.005,length=300)
+sdp_t<-mup_t
+weights_t<-matrix(0,nrow=300,ncol=15)
+
+for (i in 1:length(mup_t)){
+  bvec_t<-c(1,mup_t[i],rep(0.000000000001,15))
+  result_t<-solve.QP(Dmat=2*cov_mat,dvec=rep(0,15),Amat=Amat_t,bvec=bvec_t,meq=2)
+  sdp_t[i]<-sqrt(result_t$value)
+  weights_t[i,]<-result_t$solution
+}
+
+target_weight<-weights_t[1,]
+mean_t<-target_weight%*%mean_vect
+A_mean_t<-mean_t*12
+
+sd_t<-sqrt(t(as.matrix(target_weight))%*%cov_mat%*%as.matrix(target_weight))
+A_sd_t<-sd_t*sqrt(12)
+
+t_data<-rowSums(as.matrix(netreturn[,-16])%*%diag(target_weight))
+VaR_t<--quantile(t_data,0.05)*A
+ES_t<--sum(t_data*(t_data<quantile(t_data,0.05)))/sum(t_data<quantile(t_data,0.05))*A
+VaR_t2<--A*(mean(t_data)+qnorm(0.05)*sd(t_data))
+ES_t2<-A*(-mean(t_data)+sd(t_data)*dnorm(qnorm(0.05))/0.05)
+
+B=10000
+VaR_t_e<-rep(0,B)
+ES_t_e<-rep(0,B)
+for (i in 1:B){
+  data_e<-sample(t_data,length(t_data),replace = TRUE)
+  VaR_t_e[i]<--quantile(data_e,0.05)*A
+  ES_t_e[i]<--sum(data_e*(data_e<quantile(data_e,0.05)))/sum(data_e<quantile(data_e,0.05))*A
+}
+CIU_VaR_t_e<-2*VaR_t-quantile(VaR_t_e,0.025)
+CIL_VaR_t_e<-2*VaR_t-quantile(VaR_t_e,0.975)
+CIU_ES_t_e<-2*ES_t-quantile(ES_t_e,0.025,na.rm=TRUE)
+CIL_ES_t_e<-2*ES_t-quantile(ES_t_e,0.975,na.rm=TRUE)
+
+# Sharpe ratio
+t_data<-rowSums(as.matrix(netreturn[,-16])%*%diag(target_weight))
+sr_t<-(mean(t_data)*12-rf)/(sd(t_data)*sqrt(12))
+
+
+
+
+# using T-Bills, no short sales
+# wp*miup+(1-wp)*mufree=0.005
+wp_no<-(0.005-mufree)/(mean_tangent_no-mufree)
+round(wp_no*tangent_weight_no*100,2)
+round((1-wp_no)*100,2) # risk free proportion
+
+mean_t_no<-(1-wp_no)*mufree+wp_no*mean_tangent_no
+A_mean_t_no<-mean_t_no*12
+sd_t_no<-sqrt(wp_no^2*sd_tangent_no^2)
+A_sd_t_no<-sd_t_no*sqrt(12)
+
+t_data_no<-rowSums(as.matrix(netreturn[,-16])%*%diag(wp_no*tangent_weight_no))+mufree*(1-wp_no)
+VaR_t_no<--quantile(t_data_no,0.05)*A
+ES_t_no<--sum(t_data_no*(t_data_no<quantile(t_data_no,0.05)))/sum(t_data_no<quantile(t_data_no,0.05))*A
+VaR_t_no2<--A*(mean(t_data_no)+qnorm(0.05)*sd(t_data_no))
+ES_t_no2<-A*(-mean(t_data_no)+sd(t_data_no)*dnorm(qnorm(0.05))/0.05)
+
+B=10000
+VaR_t_f<-rep(0,B)
+ES_t_f<-rep(0,B)
+for (i in 1:B){
+  data_f<-sample(t_data_no,length(t_data_no),replace = TRUE)
+  VaR_t_f[i]<--quantile(data_f,0.05)*A
+  ES_t_f[i]<--sum(data_f*(data_f<quantile(data_f,0.05)))/sum(data_f<quantile(data_f,0.05))*A
+}
+CIU_VaR_t_f<-2*VaR_t_no-quantile(VaR_t_f,0.025)
+CIL_VaR_t_f<-2*VaR_t_no-quantile(VaR_t_f,0.975)
+CIU_ES_t_f<-2*ES_t_no-quantile(ES_t_f,0.025,na.rm=TRUE)
+CIL_ES_t_f<-2*ES_t_no-quantile(ES_t_f,0.975,na.rm=TRUE)
+
+
+# Sharpe ratio
+t_data_no<-rowSums(as.matrix(netreturn[,-16])%*%diag(wp_no*tangent_weight_no))+mufree*(1-wp_no)
+sr_t_no<-(mean(t_data_no)*12-rf)/(sd(t_data_no)*sqrt(12))
+
+sr_tangent_no<-(A_mean_t_no-rf)/A_sd_t_no
+  # (mean(tangent_data_no)*12-rf)/(sd(tangent_data_no)*sqrt(12))
+
+```
+```{r}
+#STAGE6 RISK MANAGEMENT
+
+
+```
+
+```{r}
+#STAGE 7 COPULA
+
+library("copula")
+library("VineCopula")
+# Gaussian, t, archimedean, clayton, gumbel
+
+cop.norm = normalCopula(dim=15)
+fit.copnorm = fitCopula(cop.norm,pobs(dfnetreturn[,-16]),method="ml")
+fit.copnorm
+AIC(fit.copnorm)
+BIC(fit.copnorm)
+logLik(fit.copnorm)
+
+cop.t = tCopula(dim=15)
+fit.copt = fitCopula(cop.t,pobs(dfnetreturn[,-16]),method = "ml")
+fit.copt
+AIC(fit.copt)
+BIC(fit.copt)
+logLik(fit.copt)
+
+rho<-coef(fit.copt)[1]
+df<-coef(fit.copt)[2]
+persp(tCopula(dim=2,rho,df=df),dCopula, col = rainbow(800))
+u<-rCopula(4000,tCopula(dim=15,rho,df=df))
+qplot(u[,1],u[,2],colour = u[,1], main="t copula random samples", xlab = "u", ylab = "v")
+# plot(u[,1],u[,2],pch="*",col="blue")
+
+cop.clayton = claytonCopula(dim=15)
+fit.copclayton = fitCopula(cop.clayton,pobs(dfnetreturn[,-16]),method = "ml")
+fit.copclayton
+AIC(fit.copclayton)
+BIC(fit.copclayton)
+logLik(fit.copclayton)
+
+cop.gumbel = gumbelCopula(dim=15)
+fit.copgumbel = fitCopula(cop.gumbel,pobs(dfnetreturn[,-16]),method = "ml")
+fit.copgumbel
+AIC(fit.copgumbel)
+BIC(fit.copgumbel)
+logLik(fit.copgumbel)
+
+
+cop.archm = archmCopula(family = "frank",dim=15)
+fit.archm = fitCopula(cop.archm, pobs(dfnetreturn[,-16]),method = "ml")
+fit.archm
+AIC(fit.archm)
+BIC(fit.archm)
+logLik(fit.archm)
+
+
+
+
+
+
+
+```
+
